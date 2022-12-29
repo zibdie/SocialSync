@@ -1,0 +1,21 @@
+{
+  "name": "toktunnel",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zibdie/TokTunnel.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/zibdie/TokTunnel/issues"
+  },
+  "homepage": "https://github.com/zibdie/TokTunnel#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.29.1"
+  }
+}
