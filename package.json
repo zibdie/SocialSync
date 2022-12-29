@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {},
+  "scripts": {
+    "start": "node main.js"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/zibdie/TokTunnel.git"
@@ -17,5 +19,11 @@
   "homepage": "https://github.com/zibdie/TokTunnel#readme",
   "devDependencies": {
     "@playwright/test": "^1.29.1"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "playwright": "^1.29.1",
+    "playwright-extra": "^4.3.5",
+    "puppeteer-extra-plugin-stealth": "^2.11.1"
   }
 }
