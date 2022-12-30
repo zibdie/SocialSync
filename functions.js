@@ -1,31 +1,35 @@
 const SERVER_MODE = process.env.DYNO ? true : false;
 
-async function DownloadTikTokByURL(URL) {
+async function DownloadTikTokByURL(TIKTOK_URL) {
   const { chromium } = require("playwright-extra");
   const stealth = require("puppeteer-extra-plugin-stealth")();
   chromium.use(stealth);
 
   const browser = await chromium.launch({ headless: SERVER_MODE });
 
-  const page = await browser.newPage();
-  await page.goto("<NEED FIND SERVICE HERE>", {
-    waitUntil: "networkidle",
-  });
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto("https://tikdown.org/");
+  await page.getByPlaceholder("Paste TikTok Video link").click();
+  await page.getByPlaceholder("Paste TikTok Video link").fill(TIKTOK_URL);
+  await new Promise((r) => setTimeout(r, 2000));
+  await page.getByRole("button", { name: "Get\nVideo" }).click();
+  await page.waitForResponse(
+    (response) =>
+      response.url("").includes("/getAjax") && response.status() === 200
+  );
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("link", { name: "MP4 (Video)" }).click();
+  const download = await downloadPromise;
+  console.log(download);
 
-  await page.getByPlaceholder("Enter TikTok URL").click();
-  await page.getByPlaceholder("Enter TikTok URL").fill(URL);
-  await page.getByRole("button", { name: "Download" }).click();
-  //sleep for 20 seconds - debug
+  /* sleep for 20 seconds - debug */
   await new Promise((r) => setTimeout(r, 20000));
   await browser.close();
   return;
 }
 
 async function GetRecentTiktoks(profile) {
-  const { chromium } = require("playwright-extra");
-  const stealth = require("puppeteer-extra-plugin-stealth")();
-  chromium.use(stealth);
-
   const browser = await chromium.launch({ headless: SERVER_MODE });
 
   const page = await browser.newPage();
