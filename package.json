@@ -22,8 +22,10 @@
   },
   "dependencies": {
     "dotenv": "^16.0.3",
+    "fluent-ffmpeg": "^2.1.2",
     "playwright": "^1.29.1",
     "playwright-extra": "^4.3.5",
+    "prettier": "^2.8.1",
     "puppeteer-extra-plugin-stealth": "^2.11.1"
   }
 }
