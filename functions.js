@@ -1,4 +1,5 @@
 const SERVER_MODE = process.env.DYNO ? true : false;
+const { google } = require("googleapis");
 
 const fs = require("fs");
 const path = require("path");
@@ -114,6 +115,28 @@ async function GetRecentTiktoks(profile) {
   }
 }
 
+async function CheckGoogleSheetsColumn(
+  auth,
+  spreadsheetId,
+  columnLetter,
+  value
+) {
+  const sheets = google.sheets({ version: "v4", auth });
+  const request = {
+    spreadsheetId,
+    range: `${columnLetter}1:${columnLetter}`, // get all rows in the column
+    majorDimension: "COLUMNS", // read the data by columns
+  };
+  const response = await sheets.spreadsheets.values.get(request);
+  const values = response.data.values;
+  if (!values || values.length === 0) {
+    throw new Error(`No data found for column ${columnLetter}.`);
+  }
+
+  // Check if the value is present in all rows
+  return values[0].every((cellValue) => cellValue === value);
+}
+
 async function UploadToYouTube(info, videoPath) {
   return;
 }
@@ -121,5 +144,6 @@ async function UploadToYouTube(info, videoPath) {
 module.exports = {
   DownloadTikTokByURL,
   GetRecentTiktoks,
+  CheckGoogleSheetsColumn,
   SERVER_MODE,
 };
