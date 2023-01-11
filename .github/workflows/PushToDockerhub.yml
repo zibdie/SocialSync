@@ -6,8 +6,8 @@ on:
       - main
 env:
   DOCKERHUB_USERNAME: zibdie
-  OFFICIAL_TAG: zibdie/tunneltube:latest
-  MAIN_REPO_NAME: zibdie/tunneltube
+  OFFICIAL_TAG: zibdie/socialsync:latest
+  MAIN_REPO_NAME: zibdie/socialsync
   DOCKERFILE_PATH: /
 
 jobs:
