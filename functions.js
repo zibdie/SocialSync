@@ -1,7 +1,7 @@
 require("dotenv").config();
 const SERVER_MODE = process.env.DYNO ? true : false;
 const { google } = require("googleapis");
-
+const { auth } = require("google-auth-library");
 const fs = require("fs");
 const path = require("path");
 const tempDir = path.join(__dirname, "temp");
@@ -157,33 +157,102 @@ async function GetRecentTikToks(profile) {
   }
 }
 
-async function CheckGoogleSheetsColumn(
-  spreadsheetId,
-  columnLetter,
-  value,
-  newEntry = {}
-) {
-  const auth = await google.auth.getClient({
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
-  const sheets = google.sheets({ version: "v4", auth });
-  const request = {
-    spreadsheetId,
-    range: `Sheet1!${columnLetter}1:${columnLetter}`, // get all rows in the column
-    majorDimension: "COLUMNS", // read the data by columns
-  };
-  const response = await sheets.spreadsheets.values.get(request);
-  const values = response.data.values;
-  console.log(values);
-}
+class GoogleAPI {
+  constructor(sheetId, auth) {
+    this.sheetId = sheetId;
+    this.auth = auth;
+  }
 
-async function UploadToYouTube(info, videoPath) {
-  return;
+  async checkDuplicateRow(data, column) {
+    // Use the Google Sheets API to get the data from the specified sheet
+    const keyFile = require(this.auth);
+    const client = auth.fromJSON(keyFile);
+    client.scopes = ["https://www.googleapis.com/auth/spreadsheets"];
+    const sheets = google.sheets({ version: "v4", auth: client });
+    const sheet = await sheets.spreadsheets.values.get({
+      spreadsheetId: this.sheetId,
+      range: "Sheet1",
+    });
+    const rows = sheet.data.values;
+    // Iterate through the rows and check if the specified column in any of them match the data passed in
+    for (const row of rows) {
+      if (row[column] === data) {
+        return { status: true, data: row };
+      }
+    }
+    // Return false if no match is found
+    return { status: false, data: null };
+  }
+
+  async writeNewRow(data) {
+    // Use the Google Sheets API to append the data to a new row in the specified sheet
+    const keyFile = require(this.auth);
+    const client = auth.fromJSON(keyFile);
+    client.scopes = ["https://www.googleapis.com/auth/spreadsheets"];
+    const sheets = google.sheets({ version: "v4", auth: client });
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: this.sheetId,
+      range: "Sheet1",
+      valueInputOption: "USER_ENTERED",
+      insertDataOption: "INSERT_ROWS",
+      resource: {
+        values: [data],
+      },
+    });
+  }
+
+  async uploadVideoToYoutube(videoPath, title, description, channelId) {
+    // Create a client for the YouTube API
+    const keyFile = require(this.auth);
+    const client = auth.fromJSON(keyFile);
+    client.scopes = [
+      "https://www.googleapis.com/auth/youtube",
+      "https://www.googleapis.com/auth/youtube.upload",
+    ];
+    const youtube = google.youtube({ version: "v3", auth: client });
+
+    // Define the video metadata
+    const videoMetadata = {
+      snippet: {
+        title: title,
+        description: description,
+        channelId: channelId,
+      },
+      status: {
+        privacyStatus: "private",
+      },
+    };
+
+    // Create a readable stream of the video file
+    const videoFile = fs.createReadStream(videoPath);
+
+    // Upload the video to YouTube
+    const videoUpload = youtube.videos.insert(
+      {
+        part: "snippet,status",
+        resource: videoMetadata,
+        media: {
+          body: videoFile,
+        },
+      },
+      {
+        // Use the `onUploadProgress` event from the `request` module to track the
+        // progress of the upload
+        onUploadProgress: (evt) => {
+          const progress = (evt.bytesRead / evt.totalBytes) * 100;
+          console.log(`Upload progress: ${progress}%`);
+        },
+      }
+    );
+
+    // Print the metadata of the video that was just uploaded
+    console.log(videoUpload.data);
+  }
 }
 
 module.exports = {
   DownloadTikTokByURL,
   GetRecentTikToks,
-  CheckGoogleSheetsColumn,
   SERVER_MODE,
+  GoogleAPI,
 };

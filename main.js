@@ -1,9 +1,10 @@
 require("dotenv").config();
+const path = require("path");
 
 const {
   DownloadTikTokByURL,
   GetRecentTiktoks,
-  CheckGoogleSheetsColumn,
+  GoogleAPI,
 } = require("./functions.js");
 
 if (!process.env.TIKTOK_PROFILE) {
@@ -19,17 +20,19 @@ if (!process.env.GOOGLE_SHEET_ID) {
 }
 
 (async () => {
-  //console.log(`Getting recent TikToks from @${process.env.TIKTOK_PROFILE}`);
-  //console.log(await GetRecentTiktoks(process.env.TIKTOK_PROFILE));
-  console.log(await DownloadTikTokByURL(process.env.TIKTOK_VIDEO));
-  /*
-  const spreadsheetId = process.env.GOOGLE_SHEETS_ID;
-  const columnLetter = "A"; // column A
-  const value = "john";
-  CheckGoogleSheetsColumn(spreadsheetId, columnLetter, value).then((result) => {
-    console.log(
-      `All rows in column ${columnLetter} contain the value "${value}": ${result}`
-    );
-  });
-  */
+  const GoogleObject = new GoogleAPI(
+    process.env.GOOGLE_SHEET_ID,
+    process.env.GOOGLE_APPLICATION_CREDENTIALS
+  );
+  const result = await GoogleObject.checkDuplicateRow("john", 0);
+  console.log(result);
+  const writeDataResult = await GoogleObject.writeNewRow(["john", "doe"]);
+  console.log(writeDataResult);
+  const uploadVideo = await GoogleObject.uploadVideoToYoutube(
+    path.join(__dirname, "test.mp4.webm"),
+    "Test video",
+    "This is a test video",
+    process.env.YOUTUBE_CHANNEL_ID
+  );
+  console.log(uploadVideo);
 })();
