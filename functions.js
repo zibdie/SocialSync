@@ -211,7 +211,9 @@ class GoogleAPI {
     const redirectUri = process.env.GOOGLE_REDIRECT_URI;
     const SCOPES = ["https://www.googleapis.com/auth/youtube.upload"];
     const oauth2Client = new OAuth2(clientId, clientSecret, redirectUri);
-    const LOGGED_TOKEN_PATH = path.join(__dirname, "loggedToken.json");
+    const LOGGED_TOKEN_PATH = SERVER_MODE
+      ? process.env.GOOGLE_LOGIN_TOKEN
+      : path.join(__dirname, "loggedToken.json");
     const categoryIds = {
       Entertainment: 24,
       Education: 27,
@@ -224,7 +226,14 @@ class GoogleAPI {
       token = JSON.parse(fs.readFileSync(LOGGED_TOKEN_PATH, "utf8")).tokens;
       oauth2Client.setCredentials(token);
     } catch (error) {
-      console.error(error.toString());
+      if (error.code === "ENOENT" && SERVER_MODE) {
+        console.error(
+          "No token found, please run the server in local mode to generate a token"
+        );
+        process.exit(1);
+      } else {
+        console.error("Error loading token: ", error.toString());
+      }
       console.log("\n\n");
       const authUrl = oauth2Client.generateAuthUrl({
         access_type: "offline",
