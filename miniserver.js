@@ -1,14 +1,12 @@
-// basic express starter code
-
 const express = require("express");
 const app = express();
-const port = 3000;
+const port = parseInt(process.env.EXPRESSPORT) || 3000;
 
 let appServer;
 
 app.get("/auth/google/callback", (req, res) => {
-  // get the code from the query string
   const code = req.query.code;
+  if (!code) return res.send("No code provided");
   res.send(`${code}`);
 });
 

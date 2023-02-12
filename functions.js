@@ -1,5 +1,5 @@
 require("dotenv").config();
-const SERVER_MODE = process.env.DYNO ? true : false;
+const SERVER_MODE = process.env.DYNO === "true" ? true : false;
 const { google } = require("googleapis");
 const OAuth2 = google.auth.OAuth2;
 const { auth } = require("google-auth-library");
