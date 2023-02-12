@@ -221,15 +221,17 @@ class GoogleAPI {
     // Check if we have previously stored a token
     let token;
     try {
-      token = JSON.parse(fs.readFileSync(LOGGED_TOKEN_PATH, "utf8"));
+      token = JSON.parse(fs.readFileSync(LOGGED_TOKEN_PATH, "utf8")).tokens;
+      oauth2Client.setCredentials(token);
     } catch (error) {
-      console.log(error);
+      console.error(error.toString());
+      console.log("\n\n");
       const authUrl = oauth2Client.generateAuthUrl({
         access_type: "offline",
         scope: SCOPES,
       });
-      console.log("Authorize this app by visiting this url:", authUrl);
       await startExpressServer();
+      console.log("Authorize this app by visiting this url:", authUrl);
       const rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout,
@@ -245,18 +247,21 @@ class GoogleAPI {
         const code = await getInput();
         rl.close();
         token = await oauth2Client.getToken(code);
-        oauth2Client.setCredentials(token);
         // Store the token to disk for later program executions
         fs.writeFileSync(LOGGED_TOKEN_PATH, JSON.stringify(token));
         await stopExpressServer();
+        token = token.tokens;
+        oauth2Client.setCredentials(token);
       } catch (error) {
         console.log(error);
+        return;
       }
     }
 
     // Check if the token has expired
     if (token.expiry_date < Date.now()) {
       // Refresh the token
+      console.log("Refreshing token....");
       token = await oauth2Client.refreshAccessToken();
       oauth2Client.setCredentials(token);
       // Store the token to disk for later program executions
@@ -265,14 +270,6 @@ class GoogleAPI {
 
     // Create a client for the YouTube API
     const youtube = google.youtube({ version: "v3", auth: oauth2Client });
-    console.log(oauth2Client.credentials);
-
-    const channelDetails = await youtube.channels.list({
-      part: "snippet,contentDetails,statistics",
-      mine: true,
-    });
-
-    console.log(channelDetails);
 
     // Upload the video to YouTube
     const videoUpload = await youtube.videos.insert({
