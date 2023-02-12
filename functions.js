@@ -299,10 +299,18 @@ class GoogleAPI {
       media: {
         body: fs.createReadStream(videoPath),
       },
+      onUploadProgress: (evt) => {
+        const progress = (evt.bytesRead / evt.totalBytes) * 100;
+        console.log(`Uploaded ${Math.round(progress)}%`);
+      },
     });
 
     // Return the video ID
-    return videoUpload.data.id;
+    return {
+      success: true,
+      videoId: videoUpload.data.id,
+      url: `https://www.youtube.com/watch?v=${videoUpload.data.id}`,
+    };
   }
 }
 
