@@ -1,10 +1,13 @@
 require("dotenv").config();
 const SERVER_MODE = process.env.DYNO ? true : false;
 const { google } = require("googleapis");
+const OAuth2 = google.auth.OAuth2;
 const { auth } = require("google-auth-library");
 const fs = require("fs");
+const readline = require("readline");
 const path = require("path");
 const tempDir = path.join(__dirname, "temp");
+const { startExpressServer, stopExpressServer } = require("./miniserver.js");
 const FfmpegCommand = require("fluent-ffmpeg");
 
 // generate random string function
@@ -201,52 +204,99 @@ class GoogleAPI {
     });
   }
 
-  async uploadVideoToYoutube(videoPath, title, description, channelId) {
-    // Create a client for the YouTube API
-    const keyFile = require(this.auth);
-    const client = auth.fromJSON(keyFile);
-    client.scopes = [
-      "https://www.googleapis.com/auth/youtube",
-      "https://www.googleapis.com/auth/youtube.upload",
-    ];
-    const youtube = google.youtube({ version: "v3", auth: client });
-
-    // Define the video metadata
-    const videoMetadata = {
-      snippet: {
-        title: title,
-        description: description,
-        channelId: channelId,
-      },
-      status: {
-        privacyStatus: "private",
-      },
+  async uploadVideoToYoutube(videoPath, title, description) {
+    // Load client secrets from a JSON file
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+    const SCOPES = ["https://www.googleapis.com/auth/youtube.upload"];
+    const oauth2Client = new OAuth2(clientId, clientSecret, redirectUri);
+    const LOGGED_TOKEN_PATH = path.join(__dirname, "loggedToken.json");
+    const categoryIds = {
+      Entertainment: 24,
+      Education: 27,
+      ScienceTechnology: 28,
     };
 
-    // Create a readable stream of the video file
-    const videoFile = fs.createReadStream(videoPath);
+    // Check if we have previously stored a token
+    let token;
+    try {
+      token = JSON.parse(fs.readFileSync(LOGGED_TOKEN_PATH, "utf8"));
+    } catch (error) {
+      console.log(error);
+      const authUrl = oauth2Client.generateAuthUrl({
+        access_type: "offline",
+        scope: SCOPES,
+      });
+      console.log("Authorize this app by visiting this url:", authUrl);
+      await startExpressServer();
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+      });
+      async function getInput() {
+        return new Promise((resolve, reject) => {
+          rl.question("Enter the code given to you: ", (input) => {
+            resolve(input);
+          });
+        });
+      }
+      try {
+        const code = await getInput();
+        rl.close();
+        token = await oauth2Client.getToken(code);
+        oauth2Client.setCredentials(token);
+        // Store the token to disk for later program executions
+        fs.writeFileSync(LOGGED_TOKEN_PATH, JSON.stringify(token));
+        await stopExpressServer();
+      } catch (error) {
+        console.log(error);
+      }
+    }
+
+    // Check if the token has expired
+    if (token.expiry_date < Date.now()) {
+      // Refresh the token
+      token = await oauth2Client.refreshAccessToken();
+      oauth2Client.setCredentials(token);
+      // Store the token to disk for later program executions
+      fs.writeFileSync(LOGGED_TOKEN_PATH, JSON.stringify(token));
+    }
+
+    // Create a client for the YouTube API
+    const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+    console.log(oauth2Client.credentials);
+
+    const channelDetails = await youtube.channels.list({
+      part: "snippet,contentDetails,statistics",
+      mine: true,
+    });
+
+    console.log(channelDetails);
 
     // Upload the video to YouTube
-    const videoUpload = youtube.videos.insert(
-      {
-        part: "snippet,status",
-        resource: videoMetadata,
-        media: {
-          body: videoFile,
+    const videoUpload = await youtube.videos.insert({
+      part: "snippet,status",
+      requestBody: {
+        snippet: {
+          title,
+          description,
+          tags: [""],
+          categoryId: categoryIds.ScienceTechnology,
+          defaultLanguage: "en",
+          defaultAudioLanguage: "en",
+        },
+        status: {
+          privacyStatus: "public",
         },
       },
-      {
-        // Use the `onUploadProgress` event from the `request` module to track the
-        // progress of the upload
-        onUploadProgress: (evt) => {
-          const progress = (evt.bytesRead / evt.totalBytes) * 100;
-          console.log(`Upload progress: ${progress}%`);
-        },
-      }
-    );
+      media: {
+        body: fs.createReadStream(videoPath),
+      },
+    });
 
-    // Print the metadata of the video that was just uploaded
-    console.log(videoUpload.data);
+    // Return the video ID
+    return videoUpload.data.id;
   }
 }
 

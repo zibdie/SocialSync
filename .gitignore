@@ -136,3 +136,4 @@ test.*
 temp/
 
 secrets.json
+loggedToken.json

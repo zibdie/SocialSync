@@ -25,14 +25,14 @@ if (!process.env.GOOGLE_SHEET_ID) {
     process.env.GOOGLE_APPLICATION_CREDENTIALS
   );
   const result = await GoogleObject.checkDuplicateRow("john", 0);
-  console.log(result);
   const writeDataResult = await GoogleObject.writeNewRow(["john", "doe"]);
-  console.log(writeDataResult);
   const uploadVideo = await GoogleObject.uploadVideoToYoutube(
-    path.join(__dirname, "test.mp4.webm"),
+    path.join(__dirname, "test.webm"),
     "Test video",
     "This is a test video",
-    process.env.YOUTUBE_CHANNEL_ID
+    process.env.YOUTUBE_CHANNEL_ID,
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET
   );
   console.log(uploadVideo);
 })();
