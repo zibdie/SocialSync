@@ -4,8 +4,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 # If DYNO is true, then its running headless/server
 ENV DYNO=true
 
-COPY . .
+COPY ./package.json ./package.json
 
 RUN npm install
+
+COPY . .
 
 CMD ["node", "main.js"]

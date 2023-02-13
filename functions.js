@@ -71,7 +71,6 @@ async function UploadToImgur(file_location, file_type) {
       headers: headers,
     });
     if (response.data.success) {
-      console.log(response.data.data.link);
       return {
         success: true,
         url: response.data.data.link,
@@ -109,7 +108,10 @@ async function UploadToPastebin(title, paste) {
       url: response.data,
     };
   } catch (e) {
-    console.log(e);
+    return {
+      success: false,
+      error: e.toString(),
+    };
   }
 
   return "";
