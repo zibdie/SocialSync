@@ -195,7 +195,6 @@ async function DownloadTikTokByURL(TIKTOK_URL) {
       videoInfo["profile_url"],
       "url"
     );
-    console.log(UploadImgurCopy);
     if (UploadImgurCopy.success) {
       videoInfo["profile_url"] = {
         original_url: videoInfo["profile_url"],
@@ -207,7 +206,10 @@ async function DownloadTikTokByURL(TIKTOK_URL) {
         imgur_url: null,
       };
     }
-    videoInfo["upload_date"] = parseDateString(videoInfo["upload_date"]);
+    videoInfo["upload_date"] = {
+      date: parseDateString(videoInfo["upload_date"]),
+      epoch: moment(parseDateString(videoInfo["upload_date"])).unix(),
+    };
     //await new Promise((r) => setTimeout(r, 10000));
     await browser.close();
     const videoConvertResults = await convertToMP4(rawFile);
