@@ -287,6 +287,7 @@ async function GetRecentTikToks(profile) {
     await browser.close();
     return { success: true, recent: pageResult, profileDesc };
   } catch (e) {
+    console.error(e);
     throw new Error({ success: false, error: e });
   }
 }
