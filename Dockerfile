@@ -12,5 +12,4 @@ COPY . .
 
 RUN npm install && npx playwright install-deps chromium
 
-
 CMD ["node", "main.js"]
