@@ -3,7 +3,8 @@ const path = require("path");
 
 const {
   DownloadTikTokByURL,
-  GetRecentTiktoks,
+  GetRecentTikToks,
+  UploadToPastebin,
   GoogleAPI,
 } = require("./functions.js");
 
@@ -20,10 +21,23 @@ if (!process.env.GOOGLE_SHEET_ID) {
 }
 
 (async () => {
+  console.log(
+    await UploadToPastebin("testTitle", "this is an awesome post :)")
+  );
+  return;
   const GoogleObject = new GoogleAPI(
     process.env.GOOGLE_SHEET_ID,
     process.env.GOOGLE_APPLICATION_CREDENTIALS
   );
+  const recentTikToks = await GetRecentTikToks(process.env.TIKTOK_PROFILE);
+  const ProcessList = [];
+  // check if any row exists using the checkDuplicateRow function and the first column using its id
+  for (let i = 0; i < recentTikToks.length; i++) {
+    const result = await GoogleObject.checkDuplicateRow(recentTikToks[i].id, 0);
+    if (!result) {
+      ProcessList.push(recentTikToks[i]);
+    }
+  }
   const result = await GoogleObject.checkDuplicateRow("john", 0);
   const writeDataResult = await GoogleObject.writeNewRow(["john", "doe"]);
   const uploadVideo = await GoogleObject.uploadVideoToYoutube(

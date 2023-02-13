@@ -9,6 +9,8 @@ const path = require("path");
 const tempDir = path.join(__dirname, "temp");
 const { startExpressServer, stopExpressServer } = require("./miniserver.js");
 const FfmpegCommand = require("fluent-ffmpeg");
+const axios = require("axios").default;
+const querystring = require("querystring");
 
 // generate random string function
 function randomString(length) {
@@ -40,12 +42,49 @@ async function createTempDir() {
   await new Promise((r) => setTimeout(r, 2000));
 }
 
-async function UploadToImgur(url) {
-  return 0;
+async function UploadToImgur(file_location) {
+  try {
+    /* NOT TESTED */
+    const image = fs.readFileSync(file_location);
+    const response = await axios.post("https://api.imgur.com/3/image", image, {
+      headers: {
+        Authorization: `Client-ID ${process.env.IMGUR_CLIENT_ID}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+    });
+    console.log(response.data);
+  } catch (error) {
+    console.error(error);
+  }
 }
 
-async function UploadToPastebin(info) {
-  return 0;
+async function UploadToPastebin(title, paste) {
+  try {
+    const response = await axios.post(
+      "https://pastebin.com/api/api_post.php",
+      querystring.stringify({
+        api_paste_code: paste,
+        api_option: "paste",
+        api_paste_private: 1,
+        api_paste_name: title,
+        api_expire_date: "N",
+        api_dev_key: process.env.PASTEBIN_KEY,
+      }),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      }
+    );
+    return {
+      success: true,
+      url: response.data,
+    };
+  } catch (e) {
+    console.log(e);
+  }
+
+  return "";
 }
 
 async function convertToMP4(file) {
@@ -140,7 +179,7 @@ async function GetRecentTikToks(profile) {
       waitUntil: "networkidle",
     });
 
-    const pageResult = await page.evaluate(() => {
+    let pageResult = await page.evaluate(() => {
       /* Use 'var' when injecting JS instead of 'let' and/or 'const' */
       var resultURLFetched = [];
       var allTokUrlsFoundOnPage = document
@@ -151,6 +190,13 @@ async function GetRecentTikToks(profile) {
         resultURLFetched.push(ahrefref);
       }
       return resultURLFetched;
+    });
+
+    pageResult = pageResult.map((url) => {
+      const urlComponents = url.split("/");
+      const username = urlComponents[3];
+      const id = urlComponents.pop();
+      return { id, url, username };
     });
 
     await browser.close();
@@ -272,6 +318,7 @@ class GoogleAPI {
       // Refresh the token
       console.log("Refreshing token....");
       token = await oauth2Client.refreshAccessToken();
+      token = token.tokens;
       oauth2Client.setCredentials(token);
       // Store the token to disk for later program executions
       fs.writeFileSync(LOGGED_TOKEN_PATH, JSON.stringify(token));
@@ -316,6 +363,7 @@ class GoogleAPI {
 
 module.exports = {
   DownloadTikTokByURL,
+  UploadToPastebin,
   GetRecentTikToks,
   SERVER_MODE,
   GoogleAPI,
