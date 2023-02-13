@@ -43,20 +43,32 @@ async function createTempDir() {
   await new Promise((r) => setTimeout(r, 2000));
 }
 
-async function UploadToImgur(file_location, location_type) {
+async function UploadToImgur(file_location, file_type) {
+  const FormData = require("form-data");
   try {
-    /* NOT TESTED */
-    const image =
-      location_type === "binary"
-        ? fs.readFileSync(file_location).toString("base64")
-        : location_type === "url"
-        ? file_location
-        : null;
-    const response = await axios.post("https://api.imgur.com/3/image", image, {
-      headers: {
+    let image;
+    if (file_type === "url") {
+      image = file_location;
+    } else if (file_type === "file") {
+      image = new FormData();
+      image.append("image", file_location.split(",")[1]);
+    } else {
+      throw new Error("Invalid file type");
+    }
+    let headers;
+    if (file_type === "url") {
+      headers = {
         Authorization: `Client-ID ${process.env.IMGUR_CLIENT_ID}`,
         "Content-Type": "application/x-www-form-urlencoded",
-      },
+      };
+    } else if (file_type === "file") {
+      headers = {
+        Authorization: `Client-ID ${process.env.IMGUR_CLIENT_ID}`,
+        ...image.getHeaders(),
+      };
+    }
+    const response = await axios.post("https://api.imgur.com/3/image", image, {
+      headers: headers,
     });
     if (response.data.success) {
       console.log(response.data.data.link);
@@ -64,12 +76,13 @@ async function UploadToImgur(file_location, location_type) {
         success: true,
         url: response.data.data.link,
       };
-    } else {
+    } else if (!response.data.success || response.status !== 200) {
       console.error(response.data);
       return { success: false, error: response.data.data.error };
     }
   } catch (error) {
     console.error(error);
+    return { success: false, error: error };
   }
 }
 
@@ -188,16 +201,30 @@ async function DownloadTikTokByURL(TIKTOK_URL) {
       info["profile_url"] = document
         .querySelector(`a[data-e2e="browse-user-avatar"]`)
         .querySelector("img").src;
-
       return info;
+    });
+    await page.goto(videoInfo["profile_url"], {
+      waitUntil: "networkidle",
+    });
+    videoInfo["profile_url"] = await page.evaluate(() => {
+      const imgElement = document.querySelector("img");
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      canvas.width = imgElement.width;
+      canvas.height = imgElement.height;
+
+      ctx.drawImage(imgElement, 0, 0);
+      const dataURL = canvas.toDataURL();
+      return dataURL;
     });
     const UploadImgurCopy = await UploadToImgur(
       videoInfo["profile_url"],
-      "url"
+      "file"
     );
     if (UploadImgurCopy.success) {
       videoInfo["profile_url"] = {
-        original_url: videoInfo["profile_url"],
+        img_base64: videoInfo["profile_url"],
         imgur_url: UploadImgurCopy.url,
       };
     } else {
@@ -276,6 +303,11 @@ async function GetRecentTikToks(profile) {
           url: document.querySelector(`a[data-e2e="user-link"]`).href,
           text: document.querySelector(`a[data-e2e="user-link"]`).textContent,
         },
+        userProfile: {
+          img_base64: document
+            .querySelector(`span[shape="circle"]`)
+            .querySelector("img").src,
+        },
       };
     });
 
@@ -285,6 +317,36 @@ async function GetRecentTikToks(profile) {
       const id = urlComponents.pop();
       return { id, url, username };
     });
+    await page.goto(profileDesc.userProfile.img_base64, {
+      waitUntil: "networkidle",
+    });
+    profileDesc.userProfile.base64 = await page.evaluate(() => {
+      const imgElement = document.querySelector("img");
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      canvas.width = imgElement.width;
+      canvas.height = imgElement.height;
+
+      ctx.drawImage(imgElement, 0, 0);
+      const dataURL = canvas.toDataURL();
+      return dataURL;
+    });
+    const UploadImgurCopy = await UploadToImgur(
+      profileDesc.userProfile.base64,
+      "file"
+    );
+    if (UploadImgurCopy.success) {
+      profileDesc.userProfile = {
+        img_base64: profileDesc.userProfile.base64,
+        imgur_url: UploadImgurCopy.url,
+      };
+    } else {
+      profileDesc.userProfile = {
+        original_url: profileDesc.userProfile.base64,
+        imgur_url: null,
+      };
+    }
 
     await browser.close();
     return { success: true, recent: pageResult, profileDesc };

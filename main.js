@@ -28,6 +28,7 @@ if (!process.env.GOOGLE_SHEET_ID) {
   );
 
   const recentTikToks = await GetRecentTikToks(process.env.TIKTOK_PROFILE);
+  console.log(recentTikToks);
   //const ProcessList = [];
   // check if any row exists using the checkDuplicateRow function and the first column using its id
   /*
@@ -38,8 +39,8 @@ if (!process.env.GOOGLE_SHEET_ID) {
     }
   }
   */
-  console.log(recentTikToks.recent[0]);
-  console.log(await DownloadTikTokByURL(recentTikToks.recent[0].url));
+  //console.log(recentTikToks.recent[0]);
+  //console.log(await DownloadTikTokByURL(recentTikToks.recent[0].url));
 
   //const writeDataResult = await GoogleObject.writeNewRow(["john", "doe"]);
   /*
