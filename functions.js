@@ -11,6 +11,7 @@ const { startExpressServer, stopExpressServer } = require("./miniserver.js");
 const FfmpegCommand = require("fluent-ffmpeg");
 const axios = require("axios").default;
 const querystring = require("querystring");
+const moment = require("moment");
 
 // generate random string function
 function randomString(length) {
@@ -42,17 +43,31 @@ async function createTempDir() {
   await new Promise((r) => setTimeout(r, 2000));
 }
 
-async function UploadToImgur(file_location) {
+async function UploadToImgur(file_location, location_type) {
   try {
     /* NOT TESTED */
-    const image = fs.readFileSync(file_location);
+    const image =
+      location_type === "binary"
+        ? fs.readFileSync(file_location).toString("base64")
+        : location_type === "url"
+        ? file_location
+        : null;
     const response = await axios.post("https://api.imgur.com/3/image", image, {
       headers: {
         Authorization: `Client-ID ${process.env.IMGUR_CLIENT_ID}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
     });
-    console.log(response.data);
+    if (response.data.success) {
+      console.log(response.data.data.link);
+      return {
+        success: true,
+        url: response.data.data.link,
+      };
+    } else {
+      console.error(response.data);
+      return { success: false, error: response.data.data.error };
+    }
   } catch (error) {
     console.error(error);
   }
@@ -99,6 +114,25 @@ async function convertToMP4(file) {
 }
 
 async function DownloadTikTokByURL(TIKTOK_URL) {
+  function parseDateString(dateString) {
+    const currentYear = new Date().getFullYear();
+
+    if (dateString.includes("ago")) {
+      const amount = parseInt(dateString.split(" ")[0]);
+      const unit = dateString.split(" ")[1].replace("ago", "");
+
+      return moment().subtract(amount, unit).toDate();
+    }
+
+    if (dateString.includes("-")) {
+      if (dateString.split("-").length === 3) {
+        return new Date(dateString);
+      } else {
+        return new Date(currentYear + "-" + dateString);
+      }
+    }
+  }
+
   try {
     const getRandomString = randomString(10);
     await createTempDir(getRandomString);
@@ -131,16 +165,19 @@ async function DownloadTikTokByURL(TIKTOK_URL) {
       waitUntil: "networkidle",
     });
     const videoInfo = await page.evaluate(() => {
+      //scroll down
+      window.scrollTo(0, document.body.scrollHeight);
       const info = {};
       info["description"] = document.querySelector(
         `div[data-e2e="browse-video-desc"]`
       ).textContent;
-      info["upload_date"] = Date.parse(
+      info["upload_date"] = document
+        .querySelector(`span[data-e2e="browser-nickname"]`)
+        .textContent.split("·")[
         document
           .querySelector(`span[data-e2e="browser-nickname"]`)
-          .textContent.replaceAll(" ", "")
-          .split("·")[1]
-      );
+          .textContent.split("·").length - 1
+      ];
       info["displayName"] = document
         .querySelector(`span[data-e2e="browser-nickname"]`)
         .textContent.replaceAll(" ", "")
@@ -154,7 +191,24 @@ async function DownloadTikTokByURL(TIKTOK_URL) {
 
       return info;
     });
-    await new Promise((r) => setTimeout(r, 10000));
+    const UploadImgurCopy = await UploadToImgur(
+      videoInfo["profile_url"],
+      "url"
+    );
+    console.log(UploadImgurCopy);
+    if (UploadImgurCopy.success) {
+      videoInfo["profile_url"] = {
+        original_url: videoInfo["profile_url"],
+        imgur_url: UploadImgurCopy.url,
+      };
+    } else {
+      videoInfo["profile_url"] = {
+        original_url: videoInfo["profile_url"],
+        imgur_url: null,
+      };
+    }
+    videoInfo["upload_date"] = parseDateString(videoInfo["upload_date"]);
+    //await new Promise((r) => setTimeout(r, 10000));
     await browser.close();
     const videoConvertResults = await convertToMP4(rawFile);
     if (!videoConvertResults.success) {
@@ -162,7 +216,7 @@ async function DownloadTikTokByURL(TIKTOK_URL) {
     }
     return { success: true, path: videoConvertResults.path, info: videoInfo };
   } catch (e) {
-    throw new Error({ success: false, error: e });
+    return { success: false, error: e.toString() };
   }
 }
 
@@ -192,6 +246,37 @@ async function GetRecentTikToks(profile) {
       return resultURLFetched;
     });
 
+    let profileDesc = await page.evaluate(() => {
+      /* Use 'var' when injecting JS instead of 'let' and/or 'const' */
+      function parseToNumber(string) {
+        let value = parseFloat(string);
+        if (string.endsWith("K")) {
+          value *= 1000;
+        } else if (string.endsWith("M")) {
+          value *= 1000000;
+        }
+        return value;
+      }
+      return {
+        followingCount: parseToNumber(
+          document.querySelector(`strong[data-e2e="following-count"]`)
+            .textContent
+        ),
+        followersCount: parseToNumber(
+          document.querySelector(`strong[data-e2e="followers-count"]`)
+            .textContent
+        ),
+        likesCount: parseToNumber(
+          document.querySelector(`strong[data-e2e="likes-count"]`).textContent
+        ),
+        userBio: document.querySelector(`h2[data-e2e="user-bio"]`).textContent,
+        userLink: {
+          url: document.querySelector(`a[data-e2e="user-link"]`).href,
+          text: document.querySelector(`a[data-e2e="user-link"]`).textContent,
+        },
+      };
+    });
+
     pageResult = pageResult.map((url) => {
       const urlComponents = url.split("/");
       const username = urlComponents[3];
@@ -200,7 +285,7 @@ async function GetRecentTikToks(profile) {
     });
 
     await browser.close();
-    return { success: true, data: pageResult };
+    return { success: true, recent: pageResult, profileDesc };
   } catch (e) {
     throw new Error({ success: false, error: e });
   }
@@ -366,5 +451,6 @@ module.exports = {
   UploadToPastebin,
   GetRecentTikToks,
   SERVER_MODE,
+  UploadToImgur,
   GoogleAPI,
 };
