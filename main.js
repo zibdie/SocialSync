@@ -29,6 +29,9 @@ if (!process.env.GOOGLE_SHEET_ID) {
 
   const recentTikToks = await GetRecentTikToks(process.env.TIKTOK_PROFILE);
   console.log(recentTikToks);
+  console.log(
+    await UploadToPastebin("recent_test", JSON.stringify(recentTikToks))
+  );
   //const ProcessList = [];
   // check if any row exists using the checkDuplicateRow function and the first column using its id
   /*

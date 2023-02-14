@@ -1,5 +1,6 @@
 require("dotenv").config();
 const SERVER_MODE = process.env.DYNO === "true" ? true : false;
+const USE_TOR = process.env.USE_TOR === "true" ? true : false;
 const { google } = require("googleapis");
 const OAuth2 = google.auth.OAuth2;
 const { auth } = require("google-auth-library");
@@ -12,6 +13,51 @@ const FfmpegCommand = require("fluent-ffmpeg");
 const axios = require("axios").default;
 const querystring = require("querystring");
 const moment = require("moment");
+const { SocksProxyAgent } = require("socks-proxy-agent");
+const { promisify } = require("util");
+const exec = promisify(require("child_process").exec);
+const { spawn } = require("child_process");
+const { EventEmitter } = require("events");
+
+const torAgent = new SocksProxyAgent("socks5://127.0.0.1:9050");
+
+async function startTor() {
+  console.log("Starting Tor");
+  const torProcess = spawn("tor", ["-f", "/etc/tor/torrc"]);
+  const torEmitter = new EventEmitter();
+
+  torProcess.stdout.on("data", (data) => {
+    torEmitter.emit("stdout", data.toString());
+  });
+
+  torProcess.stderr.on("data", (data) => {
+    torEmitter.emit("stderr", data.toString());
+  });
+
+  await new Promise((resolve, reject) => {
+    torEmitter.on("stdout", (data) => {
+      console.log(data);
+      if (data.includes("Bootstrapped 100%")) {
+        console.log("Tor has been started");
+        resolve();
+      }
+    });
+
+    torEmitter.on("stderr", (data) => {
+      console.error(data);
+      reject();
+    });
+  });
+}
+
+async function stopTor() {
+  try {
+    await exec("sudo systemctl stop tor");
+    console.log("Tor has been stopped");
+  } catch (error) {
+    console.error(`Error stopping Tor: ${error}`);
+  }
+}
 
 // generate random string function
 function randomString(length) {
@@ -113,8 +159,6 @@ async function UploadToPastebin(title, paste) {
       error: e.toString(),
     };
   }
-
-  return "";
 }
 
 async function convertToMP4(file) {
@@ -322,7 +366,7 @@ async function GetRecentTikToks(profile) {
     await page.goto(profileDesc.userProfile.img_base64, {
       waitUntil: "networkidle",
     });
-    profileDesc.userProfile.base64 = await page.evaluate(() => {
+    const b64img = await page.evaluate(() => {
       const imgElement = document.querySelector("img");
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
@@ -334,27 +378,19 @@ async function GetRecentTikToks(profile) {
       const dataURL = canvas.toDataURL();
       return dataURL;
     });
-    const UploadImgurCopy = await UploadToImgur(
-      profileDesc.userProfile.base64,
-      "file"
-    );
-    if (UploadImgurCopy.success) {
-      profileDesc.userProfile = {
-        img_base64: profileDesc.userProfile.base64,
-        imgur_url: UploadImgurCopy.url,
-      };
-    } else {
-      profileDesc.userProfile = {
-        original_url: profileDesc.userProfile.base64,
-        imgur_url: null,
-      };
-    }
+    const UploadImgurCopy = await UploadToImgur(b64img, "file");
+    const UploadPastebinCopy = await UploadToPastebin("base64_img", b64img);
+    profileDesc.userProfile = {
+      img_base64: UploadPastebinCopy.success
+        ? UploadPastebinCopy.url
+        : profileDesc.userProfile.img_base64,
+      imgur_url: UploadImgurCopy.success ? UploadImgurCopy.url : null,
+    };
 
     await browser.close();
     return { success: true, recent: pageResult, profileDesc };
   } catch (e) {
-    console.error(e);
-    throw new Error({ success: false, error: e });
+    console.error({ success: false, error: e.toString() });
   }
 }
 
