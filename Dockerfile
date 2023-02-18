@@ -5,11 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV DYNO=true
 ENV USE_TOR=false
 
-RUN echo pwd
-
 WORKDIR /app
-RUN echo pwd
-
 
 USER root
 
@@ -20,7 +16,7 @@ USER pwuser
 
 COPY ./package.json ./package.json
 
-RUN npm install
+RUN npm install --production
 
 COPY . .
 

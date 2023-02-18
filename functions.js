@@ -52,10 +52,11 @@ async function startTor() {
 
 async function stopTor() {
   try {
+    console.log("Attempting to stop Tor");
     await exec("sudo systemctl stop tor");
     console.log("Tor has been stopped");
   } catch (error) {
-    console.error(`Error stopping Tor: ${error}`);
+    console.error(`Error while trying to stop Tor: ${error}`);
   }
 }
 

@@ -30,6 +30,7 @@
     "google-auth-library": "^8.7.0",
     "googleapis": "^110.0.0",
     "moment": "^2.29.4",
+    "mongoose": "^6.9.2",
     "playwright": "^1.29.1",
     "playwright-extra": "^4.3.5",
     "puppeteer-extra-plugin-stealth": "^2.11.1",
