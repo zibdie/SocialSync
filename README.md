@@ -11,11 +11,11 @@ If you wish to run this in a Docker container, simply clone the repository and e
 ### Building Locally
 
 ```
-docker build -t socialsync . && docker run -it socialsync
+docker build -t socialsync . && docker run -it --init socialsync
 ```
 
 ### Fetching The Latest Build from DockerHub
 
 ```
-docker pull zibdie/socialsync:latest && docker run -it zibdie/socialsync
+docker pull zibdie/socialsync:latest && docker run -it --init zibdie/socialsync
 ```

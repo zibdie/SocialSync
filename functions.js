@@ -18,10 +18,18 @@ const { promisify } = require("util");
 const exec = promisify(require("child_process").exec);
 const { spawn } = require("child_process");
 const { EventEmitter } = require("events");
+const portUsed = require("tcp-port-used");
+const tr = require("tor-request");
+tr.TorControlPort.password = "giraffe";
 
 const torAgent = new SocksProxyAgent("socks5://127.0.0.1:9050");
 
 async function startTor() {
+  const isPortUsed = await portUsed.check(9050, "127.0.0.1");
+  if (isPortUsed) {
+    await switchTorIdentity();
+    return;
+  }
   console.log("Starting Tor");
   const torProcess = spawn("tor", ["-f", "/etc/tor/torrc"]);
   const torEmitter = new EventEmitter();
@@ -58,6 +66,21 @@ async function stopTor() {
   } catch (error) {
     console.error(`Error while trying to stop Tor: ${error}`);
   }
+}
+
+async function switchTorIdentity() {
+  console.log("Switching Tor Identities....");
+  return new Promise((resolve, reject) => {
+    tr.newTorSession((err) => {
+      if (err) {
+        console.error(err);
+        reject(err);
+      } else {
+        console.log("Tor Identity has been switched");
+        resolve();
+      }
+    });
+  });
 }
 
 // generate random string function
@@ -133,32 +156,44 @@ async function UploadToImgur(file_location, file_type) {
 }
 
 async function UploadToPastebin(title, paste) {
-  try {
-    const response = await axios.post(
-      "https://pastebin.com/api/api_post.php",
-      querystring.stringify({
-        api_paste_code: paste,
-        api_option: "paste",
-        api_paste_private: 1,
-        api_paste_name: title,
-        api_expire_date: "N",
-        api_dev_key: process.env.PASTEBIN_KEY,
-      }),
-      {
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
+  if (USE_TOR) await startTor();
+
+  let count = 0;
+  while (count < 5) {
+    try {
+      const response = await axios.post(
+        "https://pastebin.com/api/api_post.php",
+        querystring.stringify({
+          api_paste_code: paste,
+          api_option: "paste",
+          api_paste_private: 1,
+          api_paste_name: title,
+          api_expire_date: "N",
+          api_dev_key: process.env.PASTEBIN_KEY,
+        }),
+        {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          httpsAgent: USE_TOR ? torAgent : null,
+        }
+      );
+      return {
+        success: true,
+        url: response.data,
+      };
+    } catch (e) {
+      count++;
+      if (count > 5) {
+        return {
+          success: false,
+          error: e.toString(),
+        };
       }
-    );
-    return {
-      success: true,
-      url: response.data,
-    };
-  } catch (e) {
-    return {
-      success: false,
-      error: e.toString(),
-    };
+      await switchTorIdentity();
+      // wait for 1 second before retrying
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
   }
 }
 
@@ -253,7 +288,7 @@ async function DownloadTikTokByURL(TIKTOK_URL) {
     await page.goto(videoInfo["profile_url"], {
       waitUntil: "networkidle",
     });
-    videoInfo["profile_url"] = await page.evaluate(() => {
+    const b64_img = await page.evaluate(() => {
       const imgElement = document.querySelector("img");
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
@@ -265,21 +300,13 @@ async function DownloadTikTokByURL(TIKTOK_URL) {
       const dataURL = canvas.toDataURL();
       return dataURL;
     });
-    const UploadImgurCopy = await UploadToImgur(
-      videoInfo["profile_url"],
-      "file"
-    );
-    if (UploadImgurCopy.success) {
-      videoInfo["profile_url"] = {
-        img_base64: videoInfo["profile_url"],
-        imgur_url: UploadImgurCopy.url,
-      };
-    } else {
-      videoInfo["profile_url"] = {
-        original_url: videoInfo["profile_url"],
-        imgur_url: null,
-      };
-    }
+    const UploadImgurCopy = await UploadToImgur(b64_img, "file");
+    const UploadPastebinCopy = await UploadToPastebin("base64_img", b64_img);
+
+    videoInfo["profile_url"] = {
+      img_base64: UploadPastebinCopy.success ? UploadPastebinCopy.url : b64_img,
+      imgur_url: UploadImgurCopy.success ? UploadImgurCopy.url : null,
+    };
     videoInfo["upload_date"] = {
       date: parseDateString(videoInfo["upload_date"]),
       epoch: moment(parseDateString(videoInfo["upload_date"])).unix(),
@@ -392,6 +419,7 @@ async function GetRecentTikToks(profile) {
     return { success: true, recent: pageResult, profileDesc };
   } catch (e) {
     console.error({ success: false, error: e.toString() });
+    return { success: false, error: e.toString() };
   }
 }
 

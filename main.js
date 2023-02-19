@@ -29,21 +29,28 @@ if (!process.env.GOOGLE_SHEET_ID) {
 
   const recentTikToks = await GetRecentTikToks(process.env.TIKTOK_PROFILE);
   console.log(recentTikToks);
+  /*
   console.log(
     await UploadToPastebin("recent_test", JSON.stringify(recentTikToks))
   );
+  */
+  //console.log("------------------");
   //const ProcessList = [];
   // check if any row exists using the checkDuplicateRow function and the first column using its id
   /*
-  for (let i = 0; i < recentTikToks.length; i++) {
-    const result = await GoogleObject.checkDuplicateRow(recentTikToks[i].id, 0);
+  for (let i = 0; i < recentTikToks.recent.length; i++) {
+    const result = await GoogleObject.checkDuplicateRow(
+      recentTikToks.recent[i].id,
+      0
+    );
     if (!result) {
       ProcessList.push(recentTikToks[i]);
     }
   }
-  */
+*/
   //console.log(recentTikToks.recent[0]);
-  //console.log(await DownloadTikTokByURL(recentTikToks.recent[0].url));
+  console.log(await DownloadTikTokByURL(recentTikToks.recent[0].url));
+  console.log("------------------");
 
   //const writeDataResult = await GoogleObject.writeNewRow(["john", "doe"]);
   /*
